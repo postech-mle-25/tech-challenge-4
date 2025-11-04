@@ -100,7 +100,7 @@ def main(args):
     y_true = scaler.inverse_transform(y_tmp)[:, 3]
 
     mae = mean_absolute_error(y_true, preds)
-    rmse = mean_squared_error(y_true, preds, squared=False)
+    rmse = np.sqrt(mean_squared_error(y_true, preds))
     mape = float(np.mean(np.abs((y_true - preds) / np.clip(np.abs(y_true), 1e-8, None))) * 100)
 
     print(f"✅ Métricas: MAE={mae:.4f}, RMSE={rmse:.4f}, MAPE={mape:.2f}%")
@@ -114,6 +114,19 @@ def main(args):
 
     with open("models/saved/scaler.pkl", "wb") as f:
         pickle.dump(scaler, f)
+
+    metrics_data = {
+        "mae": mae,
+        "rmse": rmse,
+        "mape": mape,
+        "epochs": args.epochs,
+        "batch_size": args.batch_size,
+        "sequence_length": args.sequence_length,
+        "symbol": args.symbol,
+    }
+    with open("models/saved/metrics.json", "w") as f:
+        import json
+        json.dump(metrics_data, f, indent=4)
 
     print("✅ Artefatos salvos em models/saved/")
 
