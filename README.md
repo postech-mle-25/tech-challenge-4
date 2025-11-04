@@ -16,12 +16,12 @@ Sistema completo para previsão de preços de ações usando redes LSTM, com col
 
 ## 🧱 Arquitetura (alto nível)
 ```
-
-Client -> FastAPI (/predict) -> Modelo LSTM (H5) + Scaler (pkl)
-|
--> Loader de dados (yfinance/stooq/alpha/brapi)
-
-````
+Client -> FastAPI (/predict) -> Modelo LSTM (keras/h5) + Scaler (pkl)
+                                   |
+                                   V
+                             Loader de dados 
+                      (yfinance/stooq/alpha/brapi)
+```
 
 ## 🛠️ Tecnologias
 - Python 3.10+
@@ -92,8 +92,10 @@ python -m src.train --symbol AAPL --epochs 10
 Durante o treino, as métricas são exibidas e os artefatos são salvos em:
 
 ```
-models/saved/lstm_model.h5
-models/saved/scaler.pkl
+models/saved/lstm_model.keras    # Modelo treinado (ou .h5 para compatibilidade)
+models/saved/scaler.pkl          # Scaler para normalização
+models/saved/metrics.json        # Métricas de treinamento (MAE, RMSE, MAPE, etc.)
+models/saved/training_history.csv # Histórico completo do treinamento
 ```
 
 ## 🚀 API
@@ -120,7 +122,7 @@ curl -X POST "http://localhost:8000/predict" \
 
 * `GET /health` – status da API (e do modelo)
 * `GET /metrics` – métricas do modelo (dummy/treino)
-* `POST /predict` – previsão multi-step com intervalo “ingênuo” (±5%)
+* `POST /predict` – previsão multi-step com intervalo de confiança (calculado com base no erro do modelo)
 
 ## 🐳 Docker
 
@@ -179,11 +181,3 @@ tech-challenge-4/
 ├── requirements.txt
 ├── docker-compose.yml
 └── README.md
-
-
-## 🧾 Entregáveis
-
-* Código + README (este documento)
-* Dockerfile / Docker Compose funcionais
-* Vídeo (5–10 min) demonstrando dados → treino → API → previsões
-* (Opcional) Link de deploy na nuvem
