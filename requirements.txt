@@ -1,0 +1,15 @@
+numpy
+pandas
+matplotlib
+seaborn
+yfinance==0.2.40
+ta
+scikit-learn
+tensorflow
+keras
+flask
+fastapi
+uvicorn
+python-dotenv
+pandas_datareader
+alpha_vantage
