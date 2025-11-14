@@ -120,7 +120,6 @@ def display_results(result):
     """Helper function to display prediction chart and data."""
     st.subheader(f"Predições para {result['symbol']}")
 
-    # 1. Create DataFrame from results
     df = pd.DataFrame({
         'date': pd.to_datetime(result['dates']),
         'prediction': result['predictions'],
@@ -154,7 +153,6 @@ def display_results(result):
     chart = (band + line).interactive()
     st.altair_chart(chart, width='stretch')
 
-    # 3. Display the DataFrame
     st.subheader("Dados Brutos da Predição")
     st.dataframe(df.set_index('date'))
 
@@ -163,15 +161,14 @@ def page_inference():
     st.title("Inferência do Modelo")
     st.info("Execute predições em tempo real usando a API do modelo treinado.")
 
-    # --- Select Input Method ---
+
     input_method = st.radio("Selecione o método de inferência:", (
     "Por Nome da Ação", "Por Dados de Ações Personalizados"), horizontal = True)
 
     st.markdown("---")
 
     stock_df = None
-    symbol = None
-    days_to_predict = 7  # Default
+
 
     if input_method == "Por Nome da Ação":
         st.header("Prever por Nome da Ação")
@@ -230,7 +227,6 @@ def page_inference():
                 st.warning("Por favor, carregue ou cole os dados para executar a predição.")
 
 
-# --- Main App Navigation ---
 
 st.set_page_config(page_title = "Previsor de Ações", layout = "wide")
 st.sidebar.title("Navegação")
