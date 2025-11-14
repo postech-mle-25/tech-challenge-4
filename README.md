@@ -49,20 +49,10 @@ pip install -r requirements.txt
 
 [BRAPI](https://brapi.dev/)
 
-```bash
-# Desligar yfinance se estiver instável na sua rede
-export DISABLE_YFINANCE=1
+Crie suas chaves de api e adicione-as ao arquivo .env
 
-# Alpha Vantage (opcional; melhora cobertura internacional)
-export ALPHAVANTAGE_API_KEY="4IZBG8P0THL3QJ6S"
 
-# BRAPI (opcional; melhora cobertura B3)
-export BRAPI_TOKEN="5tpGtjwENCfNDBagKjBm6k"
 
-# Suprimir logs de TF, rodar sempre em CPU
-export TF_CPP_MIN_LOG_LEVEL=2
-export CUDA_VISIBLE_DEVICES=""
-```
 
 ## 🧊 Aquecer Cache (dados reais)
 

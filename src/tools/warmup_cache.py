@@ -1,4 +1,3 @@
-# src/tools/warmup_cache.py
 import argparse
 from datetime import date, timedelta
 
