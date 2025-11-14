@@ -1,7 +1,6 @@
-# src/train.py
 import os
 
-# ↓ silencia CUDA/XLA e força CPU
+# silencia CUDA/XLA e força CPU
 os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "")
 
