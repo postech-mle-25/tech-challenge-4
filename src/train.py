@@ -46,8 +46,7 @@ def main(args):
     loader = StockDataLoader(
         args.symbol,
         args.start_date,
-        args.end_date,
-        allow_synthetic=not args.no_synthetic,
+        args.end_date
     )
     df = loader.fetch_data()
     df = loader.add_technical_indicators(df)
@@ -138,6 +137,6 @@ if __name__ == "__main__":
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--sequence_length", type=int, default=60)
-    parser.add_argument("--no_synthetic", action="store_true")
+
     args = parser.parse_args()
     main(args)

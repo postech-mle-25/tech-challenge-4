@@ -5,11 +5,13 @@ import pickle
 import tensorflow as tf
 
 from datetime import datetime, timedelta
+from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from src.data.data_loader import StockDataLoader
 
+load_dotenv()
 app = FastAPI(
     title="Stock Price Prediction API",
     description="API para previsão de preços de ações usando LSTM",
@@ -70,8 +72,7 @@ async def predict(request: PredictionRequest):
     start_date = end_date - timedelta(days=720)
 
     try:
-        # allow_synthetic=True desbloqueia previsão mesmo sem internet
-        loader = StockDataLoader(request.symbol, str(start_date), str(end_date), allow_synthetic=True)
+        loader = StockDataLoader(request.symbol, str(start_date), str(end_date))
         df = loader.fetch_data()
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -7,7 +7,6 @@ Sistema completo para previsão de preços de ações usando redes LSTM, com col
 - Coleta resiliente com múltiplos provedores
   - yfinance (opcional)
   - Stooq (CSV público)
-  - Alpha Vantage (API key)
   - BRAPI (B3) – token opcional
 - API REST (FastAPI) com `/predict`, `/health`, `/metrics`
 - Docker/Docker Compose
@@ -20,7 +19,7 @@ Client -> FastAPI (/predict) -> Modelo LSTM (keras/h5) + Scaler (pkl)
                                    |
                                    V
                              Loader de dados 
-                      (yfinance/stooq/alpha/brapi)
+                      (yfinance/stooq/brapi)
 ```
 
 ## 🛠️ Tecnologias
@@ -45,11 +44,16 @@ pip install -r requirements.txt
 
 ### 2) Variáveis de ambiente (recomendado)
 
-[Alpha Vantage](https://www.alphavantage.co/support/#api-key)
-
 [BRAPI](https://brapi.dev/)
 
-Crie suas chaves de api e adicione-as ao arquivo .env
+Crie suas chaves de api e adicione-as ao arquivo .env, seguindo o formato:
+
+```
+DISABLE_YFINANCE=0
+BRAPI_TOKEN="SUA_CHAVE"
+TF_CPP_MIN_LOG_LEVEL=2
+CUDA_VISIBLE_DEVICES=""
+```
 
 
 
@@ -67,16 +71,12 @@ Se falhar, use **ADRs**: `ITUB`, `PBR`, `VALE`.
 
 ## 🏋️ Treinamento
 
-### 1) Treino com **dados reais apenas** (sem sintético)
-
-```bash
-python -m src.train --symbol AAPL --epochs 10 --no_synthetic
-```
-
-### 2) Treino “destravado” (pode cair em stooq/cache/sintético se necessário)
+### 1) Treino com **dados reais**
 
 ```bash
 python -m src.train --symbol AAPL --epochs 10
+```
+
 ```
 
 Durante o treino, as métricas são exibidas e os artefatos são salvos em:
@@ -94,8 +94,6 @@ models/saved/training_history.csv # Histórico completo do treinamento
 
 ```bash
 uvicorn src.api.app:app --reload --port 8000
-# ou, para forçar previsões só com dados reais:
-ALLOW_SYNTHETIC=false uvicorn src.api.app:app --reload --port 8000
 ```
 
 Acesse a documentação: `http://localhost:8000/docs`
