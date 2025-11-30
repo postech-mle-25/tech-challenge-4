@@ -136,9 +136,37 @@ def health():
 
 @app.get("/metrics")
 def metrics():
-    # Placeholder – substitua pelas métricas reais do seu treino
-    return {
-        "model_version": "1.0.1",
-        "training_metrics": {"mae": 2.45, "rmse": 3.12, "mape": 4.8},
-        "last_updated": "2024-01-15",
-    }
+    # Tenta carregar métricas geradas pelo treinamento: models/saved/metrics.json
+    metrics_path = "models/saved/metrics.json"
+    try:
+        import json, os
+
+        if os.path.exists(metrics_path):
+            with open(metrics_path, "r") as f:
+                data = json.load(f)
+
+            training_metrics = {
+                "mae": data.get("mae"),
+                "rmse": data.get("rmse"),
+                "mape": data.get("mape"),
+            }
+
+            # usa a hora de modificação do arquivo como referência de atualização
+            mtime = os.path.getmtime(metrics_path)
+            last_updated = datetime.fromtimestamp(mtime).strftime("%Y-%m-%dT%H:%M:%S")
+
+            return {
+                "model_version": getattr(app, "version", "unknown"),
+                "training_metrics": training_metrics,
+                "last_updated": last_updated,
+                "raw": data,
+            }
+        else:
+            return {
+                "model_version": getattr(app, "version", "unknown"),
+                "training_metrics": None,
+                "last_updated": None,
+                "detail": "Métricas não encontradas em models/saved/metrics.json",
+            }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao ler métricas: {e}")

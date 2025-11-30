@@ -112,6 +112,16 @@ curl -X POST "http://localhost:8000/predict" \
 * `GET /metrics` – métricas do modelo (dummy/treino)
 * `POST /predict` – previsão multi-step com intervalo de confiança (calculado com base no erro do modelo)
 
+### API Pública
+
+A API está disponível publicamente em:
+
+```
+https://tech-challenge-4-production.up.railway.app/docs
+```
+
+Use esse endpoint para acessar a documentação (Swagger UI) e testar os endpoints sem rodar localmente.
+
 ## 🐳 Docker
 
 ### Subir com Docker Compose
