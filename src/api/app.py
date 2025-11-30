@@ -140,7 +140,6 @@ def metrics():
     metrics_path = "models/saved/metrics.json"
     try:
         import json, os
-
         if os.path.exists(metrics_path):
             with open(metrics_path, "r") as f:
                 data = json.load(f)
@@ -156,17 +155,43 @@ def metrics():
             last_updated = datetime.fromtimestamp(mtime).strftime("%Y-%m-%dT%H:%M:%S")
 
             return {
-                "model_version": getattr(app, "version", "unknown"),
+                "model_version": data.get("model_version") or getattr(app, "version", "unknown"),
                 "training_metrics": training_metrics,
                 "last_updated": last_updated,
                 "raw": data,
             }
-        else:
+
+        # Fallback: alguns deploys não incluem artefatos gerados em runtime (models/saved/)
+        # Tenta carregar um relatório de avaliação já comitado (`evaluation_report.json`) e extrair métricas
+        eval_path = "models/saved/evaluation_report.json"
+        if os.path.exists(eval_path):
+            with open(eval_path, "r") as f:
+                eval_data = json.load(f)
+
+            metrics_block = eval_data.get("metrics", {})
+            training_metrics = {
+                "mae": metrics_block.get("mae"),
+                "rmse": metrics_block.get("rmse"),
+                "mape": metrics_block.get("mape"),
+            }
+
+            mtime = os.path.getmtime(eval_path)
+            last_updated = datetime.fromtimestamp(mtime).strftime("%Y-%m-%dT%H:%M:%S")
+
             return {
                 "model_version": getattr(app, "version", "unknown"),
-                "training_metrics": None,
-                "last_updated": None,
-                "detail": "Métricas não encontradas em models/saved/metrics.json",
+                "training_metrics": training_metrics,
+                "last_updated": last_updated,
+                "raw": eval_data,
+                "detail": "Usando fallback evaluation_report.json (artifact comitado).",
             }
+
+        # Nenhum arquivo encontrado
+        return {
+            "model_version": getattr(app, "version", "unknown"),
+            "training_metrics": None,
+            "last_updated": None,
+            "detail": "Métricas não encontradas em models/saved/metrics.json nem em models/saved/evaluation_report.json",
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao ler métricas: {e}")
