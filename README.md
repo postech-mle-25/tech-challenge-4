@@ -38,7 +38,10 @@ git clone https://github.com/postech-mle-25/tech-challenge-4
 cd tech-challenge-4
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
-# venv\Scripts\activate   # Windows
+# Windows (Git Bash / bash.exe):
+# source venv/Scripts/activate
+# PowerShell: .\venv\Scripts\Activate.ps1
+# CMD: venv\Scripts\activate.bat
 pip install -r requirements.txt
 ````
 
@@ -98,6 +101,28 @@ uvicorn src.api.app:app --reload --port 8000
 
 Acesse a documentação: `http://localhost:8000/docs`
 
+No Swagger (OpenAPI) você verá exemplos automáticos para os corpos de requisição. Exemplos úteis:
+
+- `POST /predict` (exemplo):
+
+```json
+{
+  "symbol": "AAPL",
+  "days_ahead": 7
+}
+```
+
+- `POST /predict/manual` (exemplo):
+
+```json
+{
+  "symbol": "AAPL",
+  "predictions": [170.5, 171.2, 172.0, 173.1, 172.8, 174.0, 175.5]
+}
+```
+
+Use os exemplos no Swagger para preencher automaticamente o corpo de request e testar os endpoints interativamente.
+
 ### Exemplo de request
 
 ```bash
@@ -106,10 +131,22 @@ curl -X POST "http://localhost:8000/predict" \
   -d '{"symbol":"AAPL","days_ahead":7}'
 ```
 
+### Inserir previsões manuais
+
+Você pode testar o formato de resposta enviando previsões manuais (útil para QA ou demonstrações). Exemplo com o símbolo `AAPL`:
+
+```bash
+curl -X POST "http://localhost:8000/predict/manual" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"AAPL","predictions":[170.5,171.2,172.0,173.1,172.8,174.0,175.5], "days_ahead":7}'
+```
+
+O campo `days_ahead` é opcional; se informado, seu valor deve ser igual ao tamanho de `predictions`. Se omitido, o comprimento de `predictions` será usado para gerar as datas.
+
 ### Endpoints
 
 * `GET /health` – status da API (e do modelo)
-* `GET /metrics` – métricas do modelo (dummy/treino)
+* `GET /metrics` – métricas do modelo (lê `models/saved/metrics.json` quando presente; se ausente, usa fallback `models/saved/evaluation_report.json` comitado)
 * `POST /predict` – previsão multi-step com intervalo de confiança (calculado com base no erro do modelo)
 
 ### API Pública

@@ -7,7 +7,8 @@ import tensorflow as tf
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+from typing import List, Optional
 
 from src.data.data_loader import StockDataLoader
 
@@ -26,8 +27,14 @@ TARGET_INDEX = 3  # 'Close' na ordem [Open, High, Low, Close, Volume]
 
 
 class PredictionRequest(BaseModel):
-    symbol: str
-    days_ahead: int = 7
+    symbol: str = Field(..., example="AAPL")
+    days_ahead: int = Field(7, example=7)
+
+
+class ManualPredictionRequest(BaseModel):
+    symbol: str = Field(..., example="AAPL")
+    predictions: List[float] = Field(..., example=[170.5, 171.2, 172.0, 173.1, 172.8, 174.0, 175.5])
+    days_ahead: Optional[int] = Field(None, example=7)
 
 
 class PredictionResponse(BaseModel):
@@ -75,7 +82,9 @@ async def predict(request: PredictionRequest):
         loader = StockDataLoader(request.symbol, str(start_date), str(end_date))
         df = loader.fetch_data()
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        # Não expor detalhes técnicos ao cliente; retornar mensagem amigável.
+        print(f"Error fetching data for {request.symbol}: {e}")
+        raise HTTPException(status_code=404, detail=f"Ação '{request.symbol}' não encontrada ou sem dados disponíveis.")
 
     # 2) Seleciona colunas na ordem treinada
     cols = ["Open", "High", "Low", "Close", "Volume"]
@@ -120,6 +129,67 @@ async def predict(request: PredictionRequest):
         confidence_interval={
             "lower": (np.array(preds_list) * 0.95).tolist(),
             "upper": (np.array(preds_list) * 1.05).tolist(),
+        },
+    )
+
+
+@app.post("/predict/manual", response_model=PredictionResponse)
+def predict_manual(request: ManualPredictionRequest):
+    """Aceita previsões fornecidas pelo usuário e retorna no mesmo formato que /predict.
+
+    Se `days_ahead` for informado, ele deve corresponder ao tamanho de `predictions`.
+    Caso não seja informado, o tamanho de `predictions` será usado para gerar as datas.
+    """
+    preds = [float(x) for x in request.predictions]
+
+    # Validate symbol exists: try a quick yfinance lookup, then fallback to local cache
+    loader = StockDataLoader(request.symbol)
+    df_check = None
+    try:
+        df_check = loader._fetch_yfinance()
+    except Exception:
+        df_check = None
+
+    has_data = False
+    if df_check is not None and not getattr(df_check, "empty", True):
+        has_data = True
+    else:
+        try:
+            cache_df = loader._load_cache()
+            if cache_df is not None and not cache_df.empty:
+                has_data = True
+        except Exception:
+            has_data = False
+
+    if not has_data:
+        raise HTTPException(status_code=404, detail=f"Symbol '{request.symbol}' not found.")
+
+    # Determine number of output days. If `days_ahead` is provided and <= len(preds),
+    # return that many predictions/dates (slice). If omitted, use full length.
+    if request.days_ahead is None:
+        days = len(preds)
+    else:
+        days = int(request.days_ahead)
+        if days <= 0:
+            raise HTTPException(status_code=400, detail="`days_ahead` must be positive")
+        if days > len(preds):
+            raise HTTPException(status_code=400, detail="`days_ahead` cannot be greater than length of `predictions`")
+
+    # Trim predictions to requested days
+    preds = preds[:days]
+
+    # Gera datas úteis a partir do próximo dia útil
+    last_dt = pd.Timestamp.now().date()
+    future_dates = pd.bdate_range(start=last_dt + timedelta(days=1), periods=days, freq="B")
+    dates = [d.strftime("%Y-%m-%d") for d in future_dates]
+
+    return PredictionResponse(
+        symbol=request.symbol,
+        predictions=preds,
+        dates=dates,
+        confidence_interval={
+            "lower": (np.array(preds) * 0.95).tolist(),
+            "upper": (np.array(preds) * 1.05).tolist(),
         },
     )
 

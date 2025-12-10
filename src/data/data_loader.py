@@ -149,6 +149,11 @@ class StockDataLoader:
                 return None
         return None
 
+    def has_local_cache(self) -> bool:
+        """Returns True if there's a usable cache file for this symbol."""
+        df = self._load_cache()
+        return df is not None and not df.empty
+
     def _normalize(self, df: pd.DataFrame) -> pd.DataFrame:
         """Ensures standard columns and datetime index."""
         # Convert index to datetime
