@@ -1,4 +1,5 @@
 # src/api/app.py
+import logging
 import numpy as np
 import pandas as pd
 import pickle
@@ -8,9 +9,56 @@ from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Any
 
 from src.data.data_loader import StockDataLoader
+
+logger = logging.getLogger(__name__)
+
+
+def _prepare_recent(df: pd.DataFrame, cols: list, sequence_len: int) -> pd.DataFrame:
+    """Return a DataFrame with at least `sequence_len` rows.
+
+    Strategy:
+    - select columns, try dropna()
+    - ffill/bfill to recover partial rows
+    - fallback to first row (fill NaNs with 0)
+    - final fallback: synthetic minimal row
+    - pad by repeating the earliest row to reach sequence_len
+    """
+    recent_raw = df[cols].copy()
+
+    recent = recent_raw.dropna().copy()
+    if recent.empty:
+        recent = recent_raw.fillna(method='ffill').fillna(method='bfill')
+
+    if recent.empty and len(recent_raw) > 0:
+        row0 = recent_raw.iloc[0].fillna(0)
+        recent = pd.DataFrame([row0.values], columns=recent_raw.columns, index=[recent_raw.index[0]])
+
+    if recent.empty:
+        idx = pd.bdate_range(end=datetime.utcnow().date(), periods=1)
+        synthetic = {c: 0.0 for c in cols}
+        synthetic['Close'] = 1.0
+        recent = pd.DataFrame([synthetic], index=idx)
+
+    if len(recent) < sequence_len:
+        pad = sequence_len - len(recent)
+        try:
+            if isinstance(recent.index, pd.DatetimeIndex) and len(recent.index) > 0:
+                first_date = recent.index[0]
+                pad_dates = pd.bdate_range(end=first_date - timedelta(days=1), periods=pad, freq='B')
+            else:
+                pad_dates = pd.RangeIndex(start=-pad, stop=0)
+
+            pad_vals = np.tile(recent.iloc[0].values, (pad, 1))
+            padded_df = pd.DataFrame(pad_vals, columns=recent.columns, index=pad_dates)
+            recent = pd.concat([padded_df, recent])
+            logger.debug("padded data with %d rows to reach SEQUENCE_LEN=%d", pad, sequence_len)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Dados insuficientes e não foi possível gerar padding: {e}")
+
+    return recent
 
 load_dotenv()
 app = FastAPI(
@@ -42,6 +90,12 @@ class PredictionResponse(BaseModel):
     predictions: list
     dates: list
     confidence_interval: dict
+
+
+class CustomPredictionRequest(BaseModel):
+    # `data` can be a JSON string (pandas.DataFrame.to_json()) or a dict/object
+    data: Any
+    days: int
 
 
 @app.on_event("startup")
@@ -83,21 +137,20 @@ async def predict(request: PredictionRequest):
         df = loader.fetch_data()
     except Exception as e:
         # Não expor detalhes técnicos ao cliente; retornar mensagem amigável.
-        print(f"Error fetching data for {request.symbol}: {e}")
+        logger.warning("Error fetching data for %s: %s", request.symbol, e)
         raise HTTPException(status_code=404, detail=f"Ação '{request.symbol}' não encontrada ou sem dados disponíveis.")
 
     # 2) Seleciona colunas na ordem treinada
     cols = ["Open", "High", "Low", "Close", "Volume"]
     try:
-        recent = df[cols].dropna().copy()
+        recent_raw = df[cols].copy()
     except Exception:
         raise HTTPException(
             status_code=400,
             detail="Dados retornados não possuem colunas esperadas [Open, High, Low, Close, Volume].",
         )
 
-    if len(recent) < SEQUENCE_LEN:
-        raise HTTPException(status_code=400, detail=f"Dados insuficientes para janela de {SEQUENCE_LEN} passos.")
+    recent = _prepare_recent(df, cols, SEQUENCE_LEN)
 
     # 3) Escala e cria sequência
     processed = scaler.transform(recent.values)  # (N, 5)
@@ -190,6 +243,87 @@ def predict_manual(request: ManualPredictionRequest):
         confidence_interval={
             "lower": (np.array(preds) * 0.95).tolist(),
             "upper": (np.array(preds) * 1.05).tolist(),
+        },
+    )
+
+
+
+@app.post("/predict_custom", response_model=PredictionResponse)
+def predict_custom(request: CustomPredictionRequest):
+    """Recebe dados serializados (pandas.DataFrame.to_json()) e retorna previsões.
+
+    Espera `data` como string JSON (formato gerado por `DataFrame.to_json()`)
+    e `days` (int) informando quantos passos frente prever.
+    """
+    if model is None or scaler is None:
+        raise HTTPException(status_code=500, detail="Modelo ou scaler não carregados.")
+
+    # Reconstrói DataFrame enviado pelo cliente. Aceita formatos:
+    # - string JSON (pandas.DataFrame.to_json())
+    # - dict/object (o dashboard envia um dict quando usa requests.json)
+    df = None
+    try:
+        if isinstance(request.data, str):
+            # string with JSON content
+            df = pd.read_json(request.data)
+        elif isinstance(request.data, dict):
+            # dict of columns -> {index: value} (orient='columns') or list of records
+            try:
+                df = pd.DataFrame.from_dict(request.data)
+            except Exception:
+                # try records orientation
+                df = pd.DataFrame(request.data)
+        else:
+            # try to coerce other types (e.g., list of records)
+            df = pd.DataFrame(request.data)
+    except Exception as exc:
+        logger.warning("predict_custom: failed to parse incoming data: %s", exc)
+        raise HTTPException(status_code=400, detail="Não foi possível interpretar os dados enviados. Envie JSON compatível com pandas.DataFrame (ex: DataFrame.to_json() ou lista de registros).")
+
+    # Se houver coluna Date, usa como índice
+    if 'Date' in df.columns:
+        try:
+            df['Date'] = pd.to_datetime(df['Date'], errors='coerce')
+            df.set_index('Date', inplace=True)
+        except Exception:
+            pass
+
+    cols = ["Open", "High", "Low", "Close", "Volume"]
+    recent = _prepare_recent(df, cols, SEQUENCE_LEN)
+
+    # Escala e cria sequência
+    try:
+        processed = scaler.transform(recent.values)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Erro ao escalar os dados enviados.")
+
+    current_seq = processed[-SEQUENCE_LEN:, :].reshape(1, SEQUENCE_LEN, processed.shape[1])
+
+    preds_scaled = []
+    for _ in range(int(request.days)):
+        pred = model.predict(current_seq, verbose=0)
+        preds_scaled.append(float(pred[0, 0]))
+        current_seq = np.roll(current_seq, -1, axis=1)
+        current_seq[0, -1, 3] = pred[0, 0]
+
+    # Desnormalizar apenas a coluna alvo
+    n_features = getattr(scaler, "n_features_in_", 5)
+    tmp = np.zeros((len(preds_scaled), n_features))
+    tmp[:, 3] = np.array(preds_scaled).reshape(-1)
+    preds_denorm = scaler.inverse_transform(tmp)[:, 3].reshape(-1, 1)
+
+    # Datas de saída (dias úteis)
+    last_dt = recent.index[-1] if isinstance(recent.index, pd.DatetimeIndex) else pd.Timestamp.now().date()
+    future_dates = pd.bdate_range(start=last_dt + timedelta(days=1), periods=int(request.days), freq="B")
+
+    preds_list = preds_denorm.flatten().tolist()
+    return PredictionResponse(
+        symbol="CUSTOM",
+        predictions=preds_list,
+        dates=[d.strftime("%Y-%m-%d") for d in future_dates],
+        confidence_interval={
+            "lower": (np.array(preds_list) * 0.95).tolist(),
+            "upper": (np.array(preds_list) * 1.05).tolist(),
         },
     )
 

@@ -169,6 +169,22 @@ docker-compose up -d
 
 > Ajuste o `docker-compose.yml` para definir as variáveis de ambiente (ALPHAVANTAGE_API_KEY/BRAPI_TOKEN/DISABLE_YFINANCE).
 
+### Docker - Dashboard (opcional)
+
+Um Dockerfile pronto para o dashboard Streamlit foi adicionado em `docker/Dockerfile.dashboard`. Ele cria uma imagem contendo o app em `src/utils/dashboard.py` e expõe a porta definida por `PORT` (padrão 8501).
+
+Build e teste local:
+
+```bash
+# build
+docker build -f docker/Dockerfile.dashboard -t tc4-dashboard:latest .
+
+# rodar apontando para a API local (se a API estiver no host):
+docker run --rm -e API_URL="http://host.docker.internal:8000" -p 8501:8501 tc4-dashboard:latest
+```
+
+No Railway, você pode deployar o serviço do dashboard apontando o `Dockerfile` ou usando o editor de deploy do repositório. Não esqueça de adicionar a variável de ambiente `API_URL` no serviço do dashboard com a URL pública da API.
+
 ## 📊 Métricas (exemplo)
 
 Após um treino de referência:
