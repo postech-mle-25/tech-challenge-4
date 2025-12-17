@@ -13,3 +13,9 @@ uvicorn
 python-dotenv
 pandas_datareader
 alpha_vantage
+requests
+typing
+pathlib
+argparse
+datetime
+plotly

@@ -27,9 +27,17 @@ class StockDataLoader:
 
     def fetch_data(self) -> pd.DataFrame:
         """
-        Tries to fetch data in the order: YFinance -> Alpha Vantage -> Brapi.
+        Tries to fetch data in the order: Cache -> YFinance -> Stooq -> Brapi.
         """
         df = pd.DataFrame()
+
+        # 0. Try Cache FIRST (OTIMIZAÇÃO: verificar cache antes de fazer chamadas de API)
+        if df.empty:
+            cache = self._load_cache()
+            if cache is not None and not cache.empty:
+                df = cache.copy()
+                self.source = "cache"
+                return self._normalize(df)
 
         # 1. Try YFinance (Primary)
         if df.empty:
@@ -60,24 +68,30 @@ class StockDataLoader:
             except Exception as e:
                 print(f"Warning: Brapi failed for {self.symbol}: {e}")
 
-        #4. Try cache (Fallback 3)
-
-        if df.empty:
-            cache = self._load_cache()
-            if cache is not None and not cache.empty:
-                df = cache.copy()
-                self.source = "cache"
-
         if df.empty:
             raise RuntimeError(f"Could not fetch data for {self.symbol} from any source.")
 
-        return self._normalize(df)
+        normalized_df = self._normalize(df)
+        
+        # Save to cache if data came from API (not from cache itself)
+        if self.source != "cache":
+            self._save_cache(normalized_df)
+        
+        return normalized_df
 
     def _fetch_yfinance(self) -> pd.DataFrame:
-        """Fetches from Yahoo Finance"""
+        """Fetches from Yahoo Finance with timeout"""
         ticker = self.symbol
 
-        df = yf.download(ticker, start = self.start_date, end = self.end_date, progress = False, auto_adjust = True)
+        # OTIMIZAÇÃO: Adicionar timeout para evitar travamentos
+        df = yf.download(
+            ticker, 
+            start=self.start_date, 
+            end=self.end_date, 
+            progress=False, 
+            auto_adjust=True,
+            timeout=10
+        )
 
         if isinstance(df.columns, pd.MultiIndex):
             df.columns = df.columns.get_level_values(0)
@@ -86,11 +100,17 @@ class StockDataLoader:
 
 
     def _fetch_stooq(self) -> pd.DataFrame:
+        """Fetches from Stooq with proper Brazilian ticker format"""
+        # CORREÇÃO: Converter formato brasileiro para Stooq
+        # Stooq usa .US para ações brasileiras, não .SA
+        symbol = self.symbol.lower()
+        if symbol.endswith('.sa'):
+            symbol = symbol.replace('.sa', '.us')
 
-        reader = StooqDailyReader(self.symbol.lower())
+        reader = StooqDailyReader(symbol)
         df = reader.read()
         if df is None or df.empty:
-            return None
+            return pd.DataFrame()
         df.index = pd.to_datetime(df.index, errors = "coerce", utc = False)
         return df
 
@@ -136,6 +156,15 @@ class StockDataLoader:
         rename_map = {"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"}
         df.rename(columns=rename_map, inplace=True)
         return df
+
+    def _save_cache(self, df: pd.DataFrame) -> None:
+        """Saves data to cache directory"""
+        try:
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            path = os.path.join(CACHE_DIR, f"{self.symbol.upper()}.csv")
+            df.to_csv(path)
+        except Exception as e:
+            print(f"Warning: Failed to save cache for {self.symbol}: {e}")
 
     def _load_cache(self) -> Optional[pd.DataFrame]:
         path = os.path.join(CACHE_DIR, f"{self.symbol.upper()}.csv")
