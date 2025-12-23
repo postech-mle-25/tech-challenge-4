@@ -16,3 +16,8 @@ alpha_vantage
 streamlit
 altair
 requests
+typing
+pathlib
+argparse
+datetime
+plotly
