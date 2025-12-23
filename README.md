@@ -2,7 +2,7 @@
 
 Sistema completo para previsão de preços de ações usando redes LSTM, com coleta de dados robusta (múltiplos provedores), API REST e containerização.
 
-## ✨ Principais Recursos
+## Principais Recursos
 - LSTM para séries temporais (Close)
 - Coleta resiliente com múltiplos provedores
   - yfinance (opcional)
@@ -13,7 +13,7 @@ Sistema completo para previsão de preços de ações usando redes LSTM, com col
 - Métricas (MAE, RMSE, MAPE) e exemplo de dashboard
 - Cache/aquecimento de dados e execução “sem sintético” ou “destravado”
 
-## 🧱 Arquitetura (alto nível)
+## Arquitetura (alto nível)
 ```
 Client -> FastAPI (/predict) -> Modelo LSTM (keras/h5) + Scaler (pkl)
                                    |
@@ -22,7 +22,7 @@ Client -> FastAPI (/predict) -> Modelo LSTM (keras/h5) + Scaler (pkl)
                       (yfinance/stooq/brapi)
 ```
 
-## 🛠️ Tecnologias
+## Tecnologias
 - Python 3.10+
 - TensorFlow / Keras
 - FastAPI + Uvicorn
@@ -30,7 +30,7 @@ Client -> FastAPI (/predict) -> Modelo LSTM (keras/h5) + Scaler (pkl)
 - Requests
 - Docker / Docker Compose
 
-## 📦 Instalação (Local)
+## Instalação (Local)
 
 ### 1) Clonar e instalar
 ```bash
@@ -61,7 +61,7 @@ CUDA_VISIBLE_DEVICES=""
 
 
 
-## 🧊 Aquecer Cache (dados reais)
+## Aquecer Cache (dados reais)
 
 Aquece e valida o pipeline de dados por ~8 anos:
 
@@ -72,7 +72,7 @@ python -m src.tools.warmup_cache --years 8
 **Dica (B3):** tente `ITUB4.SA`, `PETR4.SA`, `VALE3.SA`.
 Se falhar, use **ADRs**: `ITUB`, `PBR`, `VALE`.
 
-## 🏋️ Treinamento
+## Treinamento
 
 ### 1) Treino com **dados reais**
 
@@ -91,7 +91,7 @@ models/saved/metrics.json        # Métricas de treinamento (MAE, RMSE, MAPE, et
 models/saved/training_history.csv # Histórico completo do treinamento
 ```
 
-## 🚀 API
+## API
 
 ### Rodar local
 
@@ -159,7 +159,7 @@ https://tech-challenge-4-production.up.railway.app/docs
 
 Use esse endpoint para acessar a documentação (Swagger UI) e testar os endpoints sem rodar localmente.
 
-## 🐳 Docker
+## Docker
 
 ### Subir com Docker Compose
 
@@ -185,7 +185,7 @@ docker run --rm -e API_URL="http://host.docker.internal:8000" -p 8501:8501 tc4-d
 
 No Railway, você pode deployar o serviço do dashboard apontando o `Dockerfile` ou usando o editor de deploy do repositório. Não esqueça de adicionar a variável de ambiente `API_URL` no serviço do dashboard com a URL pública da API.
 
-## 📊 Métricas (exemplo)
+## Métricas (exemplo)
 
 Após um treino de referência:
 
@@ -195,7 +195,7 @@ Após um treino de referência:
 
 > Esses valores variam conforme período/símbolo/seed. Use o `/metrics` e/ou gere gráficos de evolução (veja `src/utils/metrics.py`).
 
-## 🧪 Estrutura do Projeto
+## Estrutura do Projeto
 
 ```
 tech-challenge-4/
