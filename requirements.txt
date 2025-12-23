@@ -13,6 +13,8 @@ uvicorn
 python-dotenv
 pandas_datareader
 alpha_vantage
+streamlit
+altair
 requests
 typing
 pathlib

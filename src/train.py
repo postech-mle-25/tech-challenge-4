@@ -9,6 +9,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from datetime import datetime
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.metrics import mean_absolute_error, mean_squared_error
@@ -121,6 +122,8 @@ def main(args):
         "batch_size": args.batch_size,
         "sequence_length": args.sequence_length,
         "symbol": args.symbol,
+        "model_version": "1.0.1",
+        "last_updated": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
     }
     with open("models/saved/metrics.json", "w") as f:
         import json

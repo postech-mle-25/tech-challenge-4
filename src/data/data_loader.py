@@ -46,7 +46,8 @@ class StockDataLoader:
                 if not df.empty:
                     self.source = "yfinance"
             except Exception as e:
-                print(f"Warning: YFinance failed for {self.symbol}: {e}")
+                import logging
+                logging.getLogger(__name__).warning("YFinance failed for %s: %s", self.symbol, e)
 
         # 2. Try Stooq (Fallback 1)
         if df.empty:
@@ -55,7 +56,8 @@ class StockDataLoader:
                 if not df.empty:
                     self.source = "stooq"
             except Exception as e:
-                print(f"Warning: Stooq failed for {self.symbol}: {e}")
+                import logging
+                logging.getLogger(__name__).warning("Stooq failed for %s: %s", self.symbol, e)
 
         # 3. Try Brapi (Fallback 2)
         if df.empty:
@@ -66,7 +68,8 @@ class StockDataLoader:
                     if not df.empty:
                         self.source = "brapi"
             except Exception as e:
-                print(f"Warning: Brapi failed for {self.symbol}: {e}")
+                import logging
+                logging.getLogger(__name__).warning("Brapi failed for %s: %s", self.symbol, e)
 
         if df.empty:
             raise RuntimeError(f"Could not fetch data for {self.symbol} from any source.")
@@ -178,6 +181,11 @@ class StockDataLoader:
                 return None
         return None
 
+    def has_local_cache(self) -> bool:
+        """Returns True if there's a usable cache file for this symbol."""
+        df = self._load_cache()
+        return df is not None and not df.empty
+
     def _normalize(self, df: pd.DataFrame) -> pd.DataFrame:
         """Ensures standard columns and datetime index."""
         # Convert index to datetime
@@ -237,12 +245,14 @@ class StockDataLoader:
 
 
 if __name__ == "__main__":
-
+    # Simple smoke test for development. Run `python -m src.data.data_loader`.
     loader = StockDataLoader("MSFT")
     try:
-        data = loader.fetch()
+        data = loader.fetch_data()
         data = loader.add_technical_indicators(data)
-        print(f"Success! Source: {loader.source}")
+        import logging
+        logging.getLogger(__name__).info("Success! Source: %s", loader.source)
         print(data.tail())
     except Exception as e:
-        print(e)
+        import logging
+        logging.getLogger(__name__).error("Data loader test failed: %s", e)

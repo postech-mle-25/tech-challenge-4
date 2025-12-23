@@ -1,18 +1,31 @@
+import os
 import streamlit as st
 import pandas as pd
 import altair as alt
 import json
 import io
 import requests
+from pathlib import Path
+
+# Minimum rows required by the model (must match SEQUENCE_LEN in backend)
+MIN_ROWS = 60
 
 @st.cache_data
 def get_report():
-    with open('../../models/saved/evaluation_report.json', 'r') as f:
+    base = Path(__file__).resolve().parents[2]
+    path = base / 'models' / 'saved' / 'evaluation_report.json'
+    if not path.exists():
+        return {}
+    with open(path, 'r') as f:
         return json.load(f)
 
 @st.cache_data
 def get_history():
-    return pd.read_csv('../../models/saved/training_history.csv')
+    base = Path(__file__).resolve().parents[2]
+    path = base / 'models' / 'saved' / 'training_history.csv'
+    if not path.exists():
+        return pd.DataFrame()
+    return pd.read_csv(path)
 
 # Model info
 
@@ -100,19 +113,30 @@ def api_call(symbol, days, data = None, kind=None, api_url='http://localhost:800
     Call to the prediction API.
     """
 
+    # Resolve api_url: prefer explicit param, then environment variable, then localhost
+    resolved = api_url or os.environ.get('API_URL') or 'http://localhost:8000'
+    api_url = resolved.rstrip('/')
     if kind == 'stock_name':
         url = f"{api_url}/predict"
-        payload = {"symbol": symbol, "days": days}
+        # Backend expects `days_ahead` parameter name
+        payload = {"symbol": symbol, "days_ahead": days}
     else:
-        payload = {"data": data.to_json(), "days": days}
         url = f"{api_url}/predict_custom"
+        payload = {"data": data.to_json(), "days": days}
 
     try:
-        response = requests.post(url, json = payload)
-        response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
+        response = requests.post(url, json=payload, timeout=20)
+        # If response is error, show body to help debugging
+        if response.status_code >= 400:
+            try:
+                body = response.text
+            except Exception:
+                body = '<no body>'
+            st.error(f"API Error {response.status_code}: {body}")
+            return None
         return response.json()
     except requests.exceptions.RequestException as e:
-        st.error(f"API Error: {e}")
+        st.error(f"API Request failed: {e}")
         return None
 
 
@@ -215,6 +239,10 @@ def page_inference():
         if st.button("Executar Predição", key = "btn_data"):
             if stock_df is not None:
                 if all(col in stock_df.columns for col in REQUIRED_COLS):
+                    # If dataset is smaller than SEQUENCE_LEN, warn but allow sending —
+                    # backend will pad the history so a prediction can still be produced.
+                    if len(stock_df) < MIN_ROWS:
+                        st.warning(f"Aviso: o modelo usa uma janela de {MIN_ROWS} passos. Você enviou {len(stock_df)} linhas. O servidor irá completar os dados para permitir a predição (isso é apenas para demonstração).")
                     st.success("Colunas necessárias encontradas.")
                     with st.spinner("Executando inferência..."):
                         data_to_send = stock_df[REQUIRED_COLS]
