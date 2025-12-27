@@ -196,7 +196,7 @@ def page_inference():
 
     if input_method == "Por Nome da Ação":
         st.header("Prever por Nome da Ação")
-        symbol = st.text_input("Digite o Símbolo da Ação (ex: MSFT)", "MSFT")
+        symbol = st.selectbox("Selecione a ação", ["AAPL"], index=0)
         days_to_predict = st.number_input("Dias para Prever", min_value = 1, max_value = 30, value = 7)
 
         if st.button("Executar Predição", key = "btn_name"):
@@ -207,6 +207,9 @@ def page_inference():
 
     elif input_method == "Por Dados de Ações Personalizados":
         st.header("Prever por Dados de Ações Personalizados")
+        with st.expander("No momento, o modelo foi configurado para aceitar as ações listadas abaixo"):
+            st.markdown("- AAPL")
+            st.warning("A tentativa de predição utilizando dados históricos de outras empresas pode trazer resultados ruins.")
 
         REQUIRED_COLS = ["Open", "High", "Low", "Close", "Volume"]
 
