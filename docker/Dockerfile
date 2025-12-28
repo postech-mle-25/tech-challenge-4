@@ -1,24 +1,25 @@
-# docker/Dockerfile
-FROM python:3.9-slim
+FROM python:3.10-slim
+
+ENV PYTHONUNBUFFERED=1 \
+    STREAMLIT_SERVER_HEADLESS=true \
+    STREAMLIT_SERVER_RUN_ON_SAVE=false \
+    PORT=8501
 
 WORKDIR /app
 
-# Instalar dependências do sistema
-RUN apt-get update && apt-get install -y \
+# Install system deps (minimal) and python deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
     gcc \
-    g++ \
     && rm -rf /var/lib/apt/lists/*
 
-# Copiar requirements
-COPY requirements.txt .
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copiar código
-COPY src/ ./src/
-COPY models/ ./models/
+# Copy project
+COPY . /app
 
-# Expor porta
-EXPOSE 8000
+EXPOSE ${PORT}
 
-# Comando para iniciar
-CMD ["sh", "-c", "uvicorn src.api.app:app --host 0.0.0.0 --port $PORT"]
+# Run streamlit dashboard (use env PORT provided by platform)
+CMD streamlit run src/utils/dashboard.py --server.port $PORT --server.address 0.0.0.0
