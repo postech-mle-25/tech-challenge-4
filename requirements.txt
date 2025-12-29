@@ -21,3 +21,4 @@ pathlib
 argparse
 datetime
 plotly
+psutil

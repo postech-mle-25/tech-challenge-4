@@ -211,3 +211,5 @@ data/
 models/saved/
 logs/
 models/checkpoints/
+/evaluate_api.py
+.idea
