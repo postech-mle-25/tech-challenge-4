@@ -64,6 +64,40 @@ SYSTEM_MEMORY_PERCENT = Gauge(
 # =====================================================================
 
 
+# =====================================================================
+# Middleware para rastreamento de métricas
+# =====================================================================
+from starlette.middleware.base import BaseHTTPMiddleware
+
+
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        method = request.method
+        path = request.url.path
+        start_time = time.time()
+        
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception as e:
+            status_code = 500
+            raise
+        finally:
+            # Registrar latência
+            duration = time.time() - start_time
+            REQUEST_LATENCY.labels(endpoint=path).observe(duration)
+            REQUEST_COUNT.labels(method=method, endpoint=path, status_code=status_code).inc()
+            
+            # Atualizar métricas de sistema
+            SYSTEM_CPU_PERCENT.set(psutil.cpu_percent())
+            SYSTEM_MEMORY_PERCENT.set(psutil.virtual_memory().percent)
+        
+        return response
+
+
+# =====================================================================
+
+
 def _prepare_recent(df: pd.DataFrame, cols: list, sequence_len: int) -> pd.DataFrame:
     """Return a DataFrame with at least `sequence_len` rows.
 
@@ -115,6 +149,13 @@ app = FastAPI(
     version="1.0.1",
 )
 
+# =====================================================================
+# Adicionar Middleware de Prometheus
+# =====================================================================
+# app.add_middleware(PrometheusMiddleware)  # Comentado temporariamente para debug
+
+# =====================================================================
+
 # Globais
 model = None
 scaler = None
@@ -144,43 +185,6 @@ class CustomPredictionRequest(BaseModel):
     # `data` can be a JSON string (pandas.DataFrame.to_json()) or a dict/object
     data: Any
     days: int
-
-
-# =====================================================================
-# Middleware para rastreamento de métricas
-# =====================================================================
-from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.types import ASGIApp
-
-
-class PrometheusMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request, call_next):
-        method = request.method
-        path = request.url.path
-        start_time = time.time()
-        
-        try:
-            response = await call_next(request)
-            status_code = response.status_code
-        except Exception as e:
-            status_code = 500
-            raise
-        finally:
-            # Registrar latência
-            duration = time.time() - start_time
-            REQUEST_LATENCY.labels(endpoint=path).observe(duration)
-            REQUEST_COUNT.labels(method=method, endpoint=path, status_code=status_code).inc()
-            
-            # Atualizar métricas de sistema
-            SYSTEM_CPU_PERCENT.set(psutil.cpu_percent())
-            SYSTEM_MEMORY_PERCENT.set(psutil.virtual_memory().percent)
-        
-        return response
-
-
-app.add_middleware(PrometheusMiddleware)
-
-# =====================================================================
 
 
 @app.on_event("startup")
