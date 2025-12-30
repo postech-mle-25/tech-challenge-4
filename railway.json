@@ -1,5 +1,15 @@
 {
-  "build": {
-    "dockerfilePath": "docker/Dockerfile"
+  "$schema": "https://railway.app/railway.schema.json",
+  "services": {
+    "api": {
+      "source": {
+        "dockerfile": "docker/Dockerfile"
+      }
+    },
+    "streamlit": {
+      "source": {
+        "dockerfile": "Dockerfile.dashboard"
+      }
+    }
   }
 }

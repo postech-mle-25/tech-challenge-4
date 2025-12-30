@@ -108,13 +108,13 @@ def page_model_info():
 
 # Inference
 
-def api_call(symbol, days, data = None, kind=None, api_url='http://localhost:8000/'):
+def api_call(symbol, days, data = None, kind=None, api_url='https://api-tech04-production.up.railway.app'):
     """
     Call to the prediction API.
     """
 
     # Resolve api_url: prefer explicit param, then environment variable, then localhost
-    resolved = api_url or os.environ.get('API_URL') or 'http://localhost:8000'
+    resolved = api_url or os.environ.get('API_URL') or 'api-tech04-production.up.railway.app'
     api_url = resolved.rstrip('/')
     if kind == 'stock_name':
         url = f"{api_url}/predict"

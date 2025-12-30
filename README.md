@@ -185,6 +185,43 @@ docker run --rm -e API_URL="http://host.docker.internal:8000" -p 8501:8501 tc4-d
 
 No Railway, você pode deployar o serviço do dashboard apontando o `Dockerfile` ou usando o editor de deploy do repositório. Não esqueça de adicionar a variável de ambiente `API_URL` no serviço do dashboard com a URL pública da API.
 
+### Rodar o Dashboard (Streamlit) localmente
+
+Passo a passo para executar o dashboard sem Docker.
+
+```bash
+# 1) ativar o ambiente (se já criou o venv acima)
+# Windows (Git Bash / bash.exe):
+source venv/Scripts/activate
+# Linux/Mac:
+# source venv/bin/activate
+
+# 2) instalar dependências
+pip install -r requirements.txt
+
+# 3) subir a API (escolha UMA opção)
+# via Docker Compose
+docker-compose up -d
+# ou local com uvicorn
+uvicorn src.api.app:app --reload --port 8000
+
+# 4) (opcional) aquecer o cache de dados
+python -m src.tools.warmup_cache --years 8 --workers 5
+
+# 5) iniciar o Streamlit do dashboard
+streamlit run src/utils/dashboard.py --server.port 8501
+```
+
+- Acesse: `http://localhost:8501`.
+- Por padrão, o dashboard usa `http://localhost:8000` como API. Para apontar para a API pública, defina `API_URL` antes de iniciar o Streamlit:
+
+```bash
+export API_URL="https://tech-challenge-4-production.up.railway.app"
+streamlit run src/utils/dashboard.py --server.port 8501
+```
+
+- A página "Informações do Modelo" utiliza `models/saved/evaluation_report.json` e `models/saved/training_history.csv` (incluídos para demonstração).
+
 ## Métricas (exemplo)
 
 Após um treino de referência:
