@@ -21,3 +21,5 @@ pathlib
 argparse
 datetime
 plotly
+prometheus-client
+psutil

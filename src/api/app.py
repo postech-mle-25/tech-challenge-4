@@ -4,16 +4,64 @@ import numpy as np
 import pandas as pd
 import pickle
 import tensorflow as tf
+import time
+import psutil
 
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from typing import List, Optional, Any
+from prometheus_client import Counter, Histogram, Gauge, generate_latest
 
 from src.data.data_loader import StockDataLoader
 
 logger = logging.getLogger(__name__)
+
+# =====================================================================
+# Prometheus Metrics Setup
+# =====================================================================
+REQUEST_COUNT = Counter(
+    'api_requests_total',
+    'Total de requisições à API',
+    ['method', 'endpoint', 'status_code']
+)
+
+REQUEST_LATENCY = Histogram(
+    'api_request_latency_seconds',
+    'Latência das requisições em segundos',
+    ['endpoint'],
+    buckets=(0.1, 0.5, 1.0, 2.0, 5.0)
+)
+
+PREDICTION_ERRORS = Counter(
+    'api_prediction_errors_total',
+    'Total de erros em previsões',
+    ['error_type']
+)
+
+MODEL_LOADED = Gauge(
+    'model_loaded',
+    'Indica se o modelo está carregado (1=sim, 0=não)'
+)
+
+SCALER_LOADED = Gauge(
+    'scaler_loaded',
+    'Indica se o scaler está carregado (1=sim, 0=não)'
+)
+
+SYSTEM_CPU_PERCENT = Gauge(
+    'system_cpu_percent',
+    'Percentual de CPU utilizado'
+)
+
+SYSTEM_MEMORY_PERCENT = Gauge(
+    'system_memory_percent',
+    'Percentual de memória utilizada'
+)
+
+# =====================================================================
 
 
 def _prepare_recent(df: pd.DataFrame, cols: list, sequence_len: int) -> pd.DataFrame:
@@ -98,17 +146,65 @@ class CustomPredictionRequest(BaseModel):
     days: int
 
 
+# =====================================================================
+# Middleware para rastreamento de métricas
+# =====================================================================
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp
+
+
+class PrometheusMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        method = request.method
+        path = request.url.path
+        start_time = time.time()
+        
+        try:
+            response = await call_next(request)
+            status_code = response.status_code
+        except Exception as e:
+            status_code = 500
+            raise
+        finally:
+            # Registrar latência
+            duration = time.time() - start_time
+            REQUEST_LATENCY.labels(endpoint=path).observe(duration)
+            REQUEST_COUNT.labels(method=method, endpoint=path, status_code=status_code).inc()
+            
+            # Atualizar métricas de sistema
+            SYSTEM_CPU_PERCENT.set(psutil.cpu_percent())
+            SYSTEM_MEMORY_PERCENT.set(psutil.virtual_memory().percent)
+        
+        return response
+
+
+app.add_middleware(PrometheusMiddleware)
+
+# =====================================================================
+
+
 @app.on_event("startup")
 async def load_model():
     global model, scaler
     # Modelo (.keras preferível; .h5 como fallback)
     try:
         model = tf.keras.models.load_model("models/saved/lstm_model.keras", compile=False)
+        MODEL_LOADED.set(1)
     except Exception:
-        model = tf.keras.models.load_model("models/saved/lstm_model.h5", compile=False)
+        try:
+            model = tf.keras.models.load_model("models/saved/lstm_model.h5", compile=False)
+            MODEL_LOADED.set(1)
+        except Exception as e:
+            logger.error(f"Falha ao carregar modelo: {e}")
+            MODEL_LOADED.set(0)
 
-    with open("models/saved/scaler.pkl", "rb") as f:
-        scaler = pickle.load(f)
+    try:
+        with open("models/saved/scaler.pkl", "rb") as f:
+            scaler = pickle.load(f)
+        SCALER_LOADED.set(1)
+    except Exception as e:
+        logger.error(f"Falha ao carregar scaler: {e}")
+        SCALER_LOADED.set(0)
 
 
 @app.get("/")
@@ -399,3 +495,13 @@ def metrics():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao ler métricas: {e}")
+
+
+@app.get("/metrics/prometheus", response_class=Response)
+def metrics_prometheus():
+    """Endpoint para Prometheus scraping.
+    
+    Retorna métricas no formato text/plain de Prometheus.
+    """
+    return Response(generate_latest(), media_type="text/plain; charset=utf-8")
+

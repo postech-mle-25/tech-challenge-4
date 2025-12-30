@@ -185,6 +185,115 @@ docker run --rm -e API_URL="http://host.docker.internal:8000" -p 8501:8501 tc4-d
 
 No Railway, você pode deployar o serviço do dashboard apontando o `Dockerfile` ou usando o editor de deploy do repositório. Não esqueça de adicionar a variável de ambiente `API_URL` no serviço do dashboard com a URL pública da API.
 
+## Monitoramento com Prometheus + Grafana
+
+### Setup Local com Docker Compose
+
+O projeto inclui suporte completo para monitoramento de aplicação com Prometheus e Grafana.
+
+**Componentes:**
+- **API**: exporta métricas no endpoint `/metrics/prometheus`
+- **Prometheus**: scrapa métricas a cada 15 segundos
+- **Grafana**: visualiza as métricas em dashboards
+
+**Iniciar tudo:**
+
+```bash
+docker-compose up -d
+```
+
+Isso vai subir:
+1. **API** em `http://localhost:8000`
+2. **Prometheus** em `http://localhost:9090`
+3. **Grafana** em `http://localhost:3000`
+
+### Acessar as Ferramentas
+
+**Prometheus:**
+- URL: `http://localhost:9090`
+- Consulte métricas direto no explorador
+- Verifique targets em `Status -> Targets`
+
+**Grafana:**
+- URL: `http://localhost:3000`
+- **Usuário**: `admin`
+- **Senha**: `admin123`
+
+**Adicionar Prometheus como data source:**
+1. Acesse `Configuration -> Data Sources`
+2. Clique `Add data source`
+3. Selecione `Prometheus`
+4. URL: `http://prometheus:9090`
+5. Salve e teste
+
+### Métricas Disponíveis
+
+| Métrica | Tipo | Descrição |
+|---------|------|-----------|
+| `api_requests_total` | Counter | Total de requisições (método, endpoint, status) |
+| `api_request_latency_seconds` | Histogram | Latência das requisições em segundos |
+| `api_prediction_errors_total` | Counter | Total de erros em previsões |
+| `model_loaded` | Gauge | 1 se modelo está carregado, 0 caso contrário |
+| `scaler_loaded` | Gauge | 1 se scaler está carregado, 0 caso contrário |
+| `system_cpu_percent` | Gauge | Percentual de CPU utilizado |
+| `system_memory_percent` | Gauge | Percentual de memória utilizada |
+
+### Criar Dashboard no Grafana
+
+1. Acesse `Dashboards -> New Dashboard`
+2. Clique `Add an empty panel`
+3. No editor, execute uma query Prometheus, exemplo:
+   ```
+   rate(api_requests_total[5m])
+   ```
+4. Configure título e visualização
+5. Salve o dashboard
+
+**Exemplo de queries úteis:**
+```promql
+# Taxa de requisições por segundo
+rate(api_requests_total[1m])
+
+# Latência P95
+histogram_quantile(0.95, api_request_latency_seconds_bucket)
+
+# Taxa de erros
+rate(api_prediction_errors_total[5m])
+
+# CPU utilizado
+system_cpu_percent
+
+# Memória utilizada
+system_memory_percent
+```
+
+### Testar Monitoramento
+
+Faça requisições para gerar métricas:
+
+```bash
+# Fazer uma previsão
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"symbol":"AAPL","days_ahead":7}'
+
+# Verificar métricas brutos no Prometheus
+curl http://localhost:8000/metrics/prometheus
+```
+
+No Grafana, você verá os gráficos sendo atualizados em tempo real.
+
+### Parar o Monitoramento
+
+```bash
+docker-compose down
+```
+
+Adiciona a opção `-v` para também remover volumes (dados do Prometheus/Grafana):
+```bash
+docker-compose down -v
+```
+
 ### Rodar o Dashboard (Streamlit) localmente
 
 Passo a passo para executar o dashboard sem Docker.
